@@ -158,3 +158,37 @@ lm(report_trend ~ num_segments + crime_coverage + welfare_coverage + trump_admin
     msummary(output='markdown')
 ```
 
+We want to recreate figure 4 and table 3 using the data they used to see if we still get the same results.
+
+```{r}
+report_data <- read_csv('from_replication_files/google_trends_report.csv') |>
+    rename(report_trend = search)
+crime_data <- read_csv('from_replication_files/google_trends_crime.csv') |>
+    rename(crime_trend = search)
+welfare_data <- read_csv('from_replication_files/google_trends_welfare.csv') |>
+    rename(welfare_trend = search)
+
+trend_data_given <- report_data |>
+    inner_join(crime_data, by=c("year", "month")) |>
+    inner_join(welfare_data, by=c("year", "month")) |>
+    mutate(month = paste(year, month), month = parse_date(month, "%Y %m")) |>
+    mutate(president=as.factor(ifelse(year(month) <= 2008, "Bush", ifelse(year(month) <= 2016, "Obama", "Trump"))))
+
+trend_data_given |>
+    pivot_longer(names_to = "trend_type", values_to = "trend_value", cols = ends_with("_trend")) |>
+    mutate(trend_type=factor(trend_type, labels=c("report_trend", "crime_trend", "welfare_trend"))) |>
+    ggplot(aes(x=month, y=trend_value, color=president)) +
+    geom_point(alpha = 0.3) +
+    geom_smooth(method=lm, formula = y ~ x, se=F) +
+    facet_wrap(~ trend_type, dir="v")
+
+table_3_data_given <- trend_data_given |>
+    mutate(is_bush = president == "Bush", is_trump = president == "Trump")
+
+list(
+    crime = lm(crime_trend ~ month + is_bush + is_trump, data = table_3_data_given),
+    welfare = lm(welfare_trend ~ month + is_bush + is_trump, data = table_3_data_given),
+    report = lm(report_trend ~ month + is_bush + is_trump, data = table_3_data_given)
+) |> msummary(output='markdown')
+```
+With this, we get the same data as he does. We still don't get quite the same regression, but we get closer. Interestingly, a lot of times, they have non-zero trends when we have zero trends.
