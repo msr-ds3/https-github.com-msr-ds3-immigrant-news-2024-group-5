@@ -1,0 +1,160 @@
+---
+title: "Recreating Immigration Plots"
+author: "Shimmy Greengart"
+date: "2024-06-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(modelsummary)
+library(stm)
+library(modelr)
+```
+
+First, I get the data.
+
+```{r}
+immigration_data <- read_csv('google_trends_data.csv', skip=3, col_names=c('month', 'welfare_trend', 'crime_trend', 'report_trend')) |>
+    mutate(month = parse_date(month, "%Y-%m")) |>
+    mutate(president=as.factor(ifelse(year(month) <= 2008, "Bush", ifelse(year(month) <= 2016, "Obama", "Trump"))))
+
+```
+Now, we recreate the plot.
+
+```{r}
+immigration_data |>
+    pivot_longer(names_to = "trend_type", values_to = "trend_value", cols = ends_with("_trend")) |>
+    mutate(trend_type=factor(trend_type, labels=c("report_trend", "crime_trend", "welfare_trend"))) |>
+    ggplot(aes(x=month, y=trend_value, color=president)) +
+    geom_point(alpha = 0.3) +
+    geom_smooth(method=lm, formula = y ~ x, se=F) +
+    facet_wrap(~ trend_type, dir="v")
+```
+
+Now we do table 3.
+
+```{r}
+table_3_data <- immigration_data |>
+    mutate(is_bush = president == "Bush", is_trump = president == "Trump")
+
+models <- list(
+    crime = lm(crime_trend ~ month + is_bush + is_trump, data = table_3_data),
+    welfare = lm(welfare_trend ~ month + is_bush + is_trump, data = table_3_data),
+    report = lm(report_trend ~ month + is_bush + is_trump, data = table_3_data)
+)
+
+msummary(models, output='markdown')
+```
+We are getting different values for the model. Not only are the constants off, but they have welfare increasing by date, while we have it decreasing. They also have big positive changes from Bush. We have small positive changes from Crime and Welfare, and by Reporting, where they have a small positive change, we have a small negative change. And they find bigger changes for Trump than we do.
+
+But, this still supports their point from this table, which was that Trump's election led to a large positive increase in all these searches, which we do find.
+
+```{r}
+table_3_data |>
+    add_predictions(models[["report"]]) |>
+    ggplot(aes(x=month, y=report_trend, color=president)) +
+    geom_point(alpha = 0.3) +
+    geom_smooth(method=lm, formula = y ~ x, se=F) +
+    geom_line(aes(y=pred), linetype="dashed")
+
+table_3_data |>
+    add_predictions(models[["crime"]]) |>
+    ggplot(aes(x=month, y=crime_trend, color=president)) +
+    geom_point(alpha = 0.3) +
+    geom_smooth(method=lm, formula = y ~ x, se=F) +
+    geom_line(aes(y=pred), linetype="dashed")
+
+table_3_data |>
+    add_predictions(models[["welfare"]]) |>
+    ggplot(aes(x=month, y=welfare_trend, color=president)) +
+    geom_point(alpha = 0.3) +
+    geom_smooth(method=lm, formula = y ~ x, se=F) +
+    geom_line(aes(y=pred), linetype="dashed")
+```
+This looks very different from out original plot, but that makes sense. Before, geom_smooth was using * to have different slopes for the different presidencies. Since here, we only have a constant based on who was president, we have one slope for everything.
+
+Now, we get the topic model data.
+
+```{r}
+load("TopicModel.RData")
+document_topics <- make.dt(immigrFit, meta = out$meta)
+topic_terms <- t(exp(immigrFit$beta$logbeta[[1]]))
+rownames(topic_terms) <- out$vocab
+colnames(topic_terms) <- sprintf("Topic%d", 1:ncol(topic_terms))
+
+document_topics <- document_topics |>
+    mutate(date = ymd(date))
+```
+
+First, we make figure 2. It is about immigration coverage in general, not of a specific category, so I think all the documents there count.
+
+```{r}
+campaign_start <- document_topics |>
+    filter(time == "pre-election") |>
+    arrange(date) |>
+    slice_tail(n=1) |>
+    pull(date)
+
+campaign_end <- document_topics |>
+    filter(time == "post-election") |>
+    arrange(date) |>
+    slice_head(n=1) |>
+    pull(date)
+
+document_topics |>
+    mutate(month = floor_date(date, "month")) |>
+    group_by(month, channel, time) |>
+    summarize(num_segments = n()) |>
+    ggplot(aes(x=month, y=num_segments, color=channel)) +
+    geom_point() +
+    geom_smooth(aes(group = interaction(channel, time)), se=F) +
+    geom_vline(aes(xintercept=campaign_start), linetype="dashed") +
+    geom_vline(aes(xintercept=campaign_end), linetype="dashed") +
+    scale_color_manual(values=c("magenta", "red", "blue"))
+
+    
+```
+We have essentially the same results as they do, but with a less severe jump after the campaign start and a bigger drop before the inauguration. But their overall findings still show.
+
+```{r}
+document_topics |>
+    mutate(month = floor_date(date, "month")) |>
+    group_by(month, channel, time) |>
+    summarize(proportion_1 = sum(Topic1), proportion_3 = sum(Topic3), crime_coverage = proportion_1 + proportion_3) |>
+    ggplot(aes(x=month, y=crime_coverage, color=channel)) +
+    geom_point() +
+    geom_smooth(aes(group = interaction(channel, time)), se=F) +
+    geom_vline(aes(xintercept=campaign_start), linetype="dashed") +
+    geom_vline(aes(xintercept=campaign_end), linetype="dashed") +
+    scale_color_manual(values=c("magenta", "red", "blue"))
+
+document_topics |>
+    mutate(month = floor_date(date, "month")) |>
+    group_by(month, channel, time) |>
+    summarize(welfare_coverage = sum(Topic13)) |>
+    ggplot(aes(x=month, y=welfare_coverage, color=channel)) +
+    geom_point() +
+    geom_smooth(aes(group = interaction(channel, time)), se=F) +
+    geom_vline(aes(xintercept=campaign_start), linetype="dashed") +
+    geom_vline(aes(xintercept=campaign_end), linetype="dashed") +
+    scale_color_manual(values=c("magenta", "red", "blue"))
+```
+This time, we get identical results. I suspect that in the original, we only differ because of how we deal with the months bifrucated by the dotted lines. We were consistent, always treating them as multiple points, causing the lines to cross the dotted lines. They only seem to have done that for the second one for some reason.
+
+Now we reproduce table 4.
+
+```{r}
+topic_table <- document_topics |>
+    mutate(month = floor_date(date, "month")) |>
+    group_by(month, channel, time) |>
+    summarize(proportion_1 = sum(Topic1), proportion_3 = sum(Topic3), crime_coverage = proportion_1 + proportion_3, welfare_coverage = sum(Topic13), num_segments = n()) |>
+    mutate(trump_admin = time == "post-election") |>
+    inner_join(immigration_data, by="month")
+
+lm(report_trend ~ num_segments + crime_coverage + welfare_coverage + trump_admin + month, topic_table) |>
+    msummary(output='markdown')
+```
+
