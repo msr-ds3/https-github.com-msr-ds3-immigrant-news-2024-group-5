@@ -144,19 +144,20 @@ document_topics |>
 ```
 This time, we get identical results. I suspect that in the original, we only differ because of how we deal with the months bifrucated by the dotted lines. We were consistent, always treating them as multiple points, causing the lines to cross the dotted lines. They only seem to have done that for the second one for some reason.
 
-Now we reproduce table 4.
+Now we reproduce table 4. This is before we get the daily data, so we do it on a monthly level.
 
 ```{r}
 topic_table <- document_topics |>
     mutate(month = floor_date(date, "month")) |>
     group_by(month, channel, time) |>
     summarize(proportion_1 = sum(Topic1), proportion_3 = sum(Topic3), crime_coverage = proportion_1 + proportion_3, welfare_coverage = sum(Topic13), num_segments = n()) |>
-    mutate(trump_admin = time == "post-election") |>
+    mutate(trump_admin = time == "post-election", month_of_year=month(month, label=T)) |>
     inner_join(immigration_data, by="month")
 
-lm(report_trend ~ num_segments + crime_coverage + welfare_coverage + trump_admin + month, topic_table) |>
+lm(report_trend ~ num_segments + crime_coverage + welfare_coverage + trump_admin + month + month_of_year, topic_table) |>
     msummary(output='markdown')
 ```
+Obviously, this is different from their result, because it is on a monthly level. But we found significantly lower effects of number of segments and crime coverage. These things shouldn't change, but perhaps the effect only exists in the short-term (but if so, that changes the paper's conclusions). Though we did still have a high modifier for Trump's presidency, persumably because that was a long-term effect.
 
 We want to recreate figure 4 and table 3 using the data they used to see if we still get the same results.
 
@@ -192,3 +193,5 @@ list(
 ) |> msummary(output='markdown')
 ```
 With this, we get the same data as he does. We still don't get quite the same regression, but we get closer. Interestingly, a lot of times, they have non-zero trends when we have zero trends.
+
+But it's also true that he downloaded this in 3 separate files while we did it in a single file. Since Google measures things relative to each other when you download them together, it's possible that this changes things.
