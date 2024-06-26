@@ -2,7 +2,9 @@
 title: "Recreating Immigration Plots"
 author: "Shimmy Greengart"
 date: "2024-06-24"
-output: html_document
+output:
+    html_document:
+        toc: yes
 ---
 
 ```{r setup, include=FALSE}
@@ -13,6 +15,10 @@ library(modelsummary)
 library(stm)
 library(modelr)
 ```
+
+# Initial Replication Study
+
+## Figure 4
 
 First, I get the data.
 
@@ -33,6 +39,7 @@ immigration_data |>
     geom_smooth(method=lm, formula = y ~ x, se=F) +
     facet_wrap(~ trend_type, dir="v")
 ```
+## Table 3
 
 Now we do table 3.
 
@@ -75,6 +82,8 @@ table_3_data |>
     geom_line(aes(y=pred), linetype="dashed")
 ```
 This looks very different from out original plot, but that makes sense. Before, geom_smooth was using * to have different slopes for the different presidencies. Since here, we only have a constant based on who was president, we have one slope for everything.
+
+## Figures 2 and 3
 
 Now, we get the topic model data.
 
@@ -144,6 +153,8 @@ document_topics |>
 ```
 This time, we get identical results. I suspect that in the original, we only differ because of how we deal with the months bifrucated by the dotted lines. We were consistent, always treating them as multiple points, causing the lines to cross the dotted lines. They only seem to have done that for the second one for some reason.
 
+## Table 4 Monthly
+
 Now we reproduce table 4. This is before we get the daily data, so we do it on a monthly level.
 
 ```{r}
@@ -158,6 +169,8 @@ lm(report_trend ~ num_segments + crime_coverage + welfare_coverage + trump_admin
     msummary(output='markdown')
 ```
 Obviously, this is different from their result, because it is on a monthly level. But we found significantly lower effects of number of segments and crime coverage. These things shouldn't change, but perhaps the effect only exists in the short-term (but if so, that changes the paper's conclusions). Though we did still have a high modifier for Trump's presidency, persumably because that was a long-term effect.
+
+## Figure 4 and Table 3 Using Replication Files
 
 We want to recreate figure 4 and table 3 using the data they used to see if we still get the same results.
 
@@ -195,3 +208,63 @@ list(
 With this, we get the same data as he does. We still don't get quite the same regression, but we get closer. Interestingly, a lot of times, they have non-zero trends when we have zero trends.
 
 But it's also true that he downloaded this in 3 separate files while we did it in a single file. Since Google measures things relative to each other when you download them together, it's possible that this changes things.
+
+## Table 4 Using Replication Daily Data
+
+Now we will replicate Table 4 using the given day values.
+
+```{r}
+
+given_daily_data <- read_csv('from_replication_files/gt_report_daily.csv')
+
+topic_table_daily <- document_topics |>
+    group_by(date, channel, time) |>
+    summarize(proportion_1 = sum(Topic1), proportion_3 = sum(Topic3), crime_coverage = proportion_1 + proportion_3, welfare_coverage = sum(Topic13), num_segments = n()) |>
+    mutate(trump_admin = time == "post-election", month_of_year=month(date, label=T), day_of_week=wday(date, label=T)) |>
+    inner_join(given_daily_data, by="date")
+
+list(
+    search_model=lm(search ~ num_segments + crime_coverage + welfare_coverage + trump_admin + date + day_of_week + month_of_year, topic_table_daily),
+    search_adj_model=lm(search_adj ~ num_segments + crime_coverage + welfare_coverage + trump_admin + date + day_of_week + month_of_year, topic_table_daily)
+)|>
+    msummary(output='markdown')
+```
+From here, we see that while neither of them are exactly identical, the one using the adjusted values is much closer to what they got. But the non-adjusted version actually goes against it, with a greater number of searches with _less_ crime coverage.
+
+Looking at the data, it seems that the problem is that they can only look at one time period (say, month) at a time, and each month is only scaled with other searches in that month. But, I don't understand how their normalization works.
+
+## Figure 4 and Table 3 Using Individually Downloaded Data
+
+We noticed that they got each prompt separately. Since Google Trends weights everything you are comparing to the max of the other, if we want to replicate their results, then we need to get them separately like what the researchers seem to have done.
+
+```{r}
+report_data <- read_csv('from_google_trends/report_trend_individual.csv', skip=3, col_names=c('month', 'report_trend'))
+crime_data <- read_csv('from_google_trends/crime_trend_individual.csv', skip=3, col_names=c('month', 'crime_trend'))
+welfare_data <- read_csv('from_google_trends/welfare_trend_individual.csv', skip=3, col_names=c('month', 'welfare_trend'))
+
+trend_data_individual <- report_data |>
+    inner_join(crime_data, by=c("month")) |>
+    inner_join(welfare_data, by=c("month")) |>
+    mutate(month = parse_date(month, "%Y-%m")) |>
+    mutate(president=as.factor(ifelse(year(month) <= 2008, "Bush", ifelse(year(month) <= 2016, "Obama", "Trump"))))
+
+trend_data_individual |>
+    pivot_longer(names_to = "trend_type", values_to = "trend_value", cols = ends_with("_trend")) |>
+    mutate(trend_type=factor(trend_type, labels=c("report_trend", "crime_trend", "welfare_trend"))) |>
+    ggplot(aes(x=month, y=trend_value, color=president)) +
+    geom_point(alpha = 0.3) +
+    geom_smooth(method=lm, formula = y ~ x, se=F) +
+    facet_wrap(~ trend_type, dir="v")
+
+table_3_data_individual <- trend_data_individual |>
+    mutate(is_bush = president == "Bush", is_trump = president == "Trump")
+
+list(
+    crime = lm(crime_trend ~ month + is_bush + is_trump, data = table_3_data_individual),
+    welfare = lm(welfare_trend ~ month + is_bush + is_trump, data = table_3_data_individual),
+    report = lm(report_trend ~ month + is_bush + is_trump, data = table_3_data_individual)
+) |> msummary(output='markdown')
+```
+But the paper still has welfare searches going up in Trump's presidency, while we have it going down slightly. And in the table, they have welfare going down over time, while we have it going up. So, this discrepency doesn't explain anything.
+
+# Extension
