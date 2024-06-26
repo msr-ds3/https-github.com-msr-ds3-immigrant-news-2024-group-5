@@ -268,3 +268,38 @@ list(
 But the paper still has welfare searches going up in Trump's presidency, while we have it going down slightly. And in the table, they have welfare going down over time, while we have it going up. So, this discrepency doesn't explain anything.
 
 # Extension
+
+The paper says: "We also expect that when the Trump administration receives media coverage for anti-immigrant rhetoric or policies, we will see an uptick in reporting searches. However, we do not expect a discontinuity in  reporting searches immediately after the 2016 election, nor do we expect media coverage of candidate Trump’s anti-immigrant rhetoric to generate more reporting searches. Neither candidate Trump nor president-elect Trump had the power to change immigration policy before his inauguration, so his anti-immigrant positions should not increase interest in reporting" (5-6). Smriti and I are skeptical of this claim, which the paper doesn't seem to actually prove, so we are going to investigate it and see if we find any discontinuities, and whether coverage of Candidate Trump also increases the amount of reporting.
+
+## Candidate Trump Boosting Reports
+
+So, we will make a regression, where we have trump and candidacy stage as * along with month and channel to see if that boosts it.
+
+```{r}
+trump_extension_table <- document_topics |>
+    mutate(month = floor_date(date, "month")) |>
+    group_by(month, channel, time, trump) |>
+    summarize(proportion_1 = sum(Topic1), proportion_3 = sum(Topic3), crime_coverage = proportion_1 + proportion_3, welfare_coverage = sum(Topic13), num_segments = n()) |>
+    mutate(month_of_year=month(month, label=T)) |>
+    inner_join(trend_data_individual, by="month")
+
+list(
+    lm(report_trend ~ num_segments + crime_coverage + welfare_coverage + time * trump + month + month_of_year, trump_extension_table),
+    lm(report_trend ~ num_segments + crime_coverage + welfare_coverage + time * trump + month, trump_extension_table)
+     ) |>
+    msummary(output='markdown')
+```
+If we regress by month in addition to our other variables, then we get what the paper predicts: trump's name causes a bigger boost post-election than the campaign. However, since the Trump boost (3.374) is more than 3, and the decrease in the campaign is less than that (-2.447), Trump _still_ has a positive association with report searches, even in the campaign. When we stop filtering by month, this remains the case.
+
+## Discontinuity on Election
+
+```{r}
+given_daily_data |>
+    mutate(trump_status=ifelse(date <= ymd("2016-11-8"), "Pre-Trump", ifelse(date < ymd("2017-01-20"), "Post-Election", "Trump's Term")), trump_status = as.factor(trump_status)) |>
+    filter(date >= ymd("2014-01-01")) |>
+    ggplot(aes(x=date, y=search_adj, color=trump_status)) +
+    geom_point(alpha = 0.1) +
+    geom_smooth(method=lm, formula = y ~ x, se=F)
+```
+
+Hmm. I'm not actually sure how to interpret this. I think we should show this to Jake tomorrow.
