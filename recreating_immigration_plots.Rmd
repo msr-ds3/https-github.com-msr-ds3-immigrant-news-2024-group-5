@@ -20,7 +20,7 @@ library(modelr)
 
 ## Figure 4
 
-First, I get the data.
+First, we get the data. We downloaded it fresh from [Google Trends](https://trends.google.com/trends/explore?date=2004-01-01%202019-12-31&geo=US&q=report%20immigrant%20%2B%20report%20immigration%20%2B%20report%20illegals%20%2B%20report%20illegal%20alien%20%2B%20report%20to%20ice,immigrant%20crime%20%2B%20immigrant%20criminal%20%2B%20immigrant%20murder%20%2B%20immigrant%20kill,immigrant%20welfare%20%2B%20immigrant%20cost%20%2B%20immigrant%20benefits&hl=en), looking at all 3 together in comparison. 
 
 ```{r}
 immigration_data <- read_csv('google_trends_data.csv', skip=3, col_names=c('month', 'welfare_trend', 'crime_trend', 'report_trend')) |>
@@ -235,7 +235,7 @@ Looking at the data, it seems that the problem is that they can only look at one
 
 ## Figure 4 and Table 3 Using Individually Downloaded Data
 
-We noticed that they got each prompt separately. Since Google Trends weights everything you are comparing to the max of the other, if we want to replicate their results, then we need to get them separately like what the researchers seem to have done.
+We noticed that they got each prompt separately. Since Google Trends weights everything you are comparing to the max of the other, if we want to replicate their results, then we need to get them separately like what the researchers seem to have done. We downloaded the [immigrant report](https://trends.google.com/trends/explore?date=2004-01-01%202019-12-31&geo=US&q=report%20immigrant%20%2B%20report%20immigration%20%2B%20report%20illegals%20%2B%20report%20illegal%20alien%20%2B%20report%20to%20ice&hl=en), [crime](https://trends.google.com/trends/explore?date=2004-01-01%202019-12-31&geo=US&q=immigrant%20crime%2Bimmigrant%20criminal%2Bimmigrant%20murder%2Bimmigrant%20kill&hl=en), and [welfare trends](https://trends.google.com/trends/explore?date=2004-01-01%202019-12-31&geo=US&q=immigrant%20welfare%2Bimmigrant%20cost%2Bimmigrant%20benefits&hl=en) separately.
 
 ```{r}
 report_data <- read_csv('from_google_trends/report_trend_individual.csv', skip=3, col_names=c('month', 'report_trend'))
@@ -293,13 +293,36 @@ If we regress by month in addition to our other variables, then we get what the 
 
 ## Discontinuity on Election
 
+Now, we check if we can find a discontinuity in reporting search rates immediately after the election in the same way that the paper found one after inauguration. We look at the discontinuity at those two locations as well as two arbitrary locations - September 1st before the election and April 1st afterwards - to see if we can find similar discontinuities.
+
+Since the data available to us isn't available in high-enough precision for this, we use their adjusted daily search data for more precise measurements.
+
 ```{r}
-given_daily_data |>
-    mutate(trump_status=ifelse(date <= ymd("2016-11-8"), "Pre-Trump", ifelse(date < ymd("2017-01-20"), "Post-Election", "Trump's Term")), trump_status = as.factor(trump_status)) |>
-    filter(date >= ymd("2014-01-01")) |>
-    ggplot(aes(x=date, y=search_adj, color=trump_status)) +
-    geom_point(alpha = 0.1) +
-    geom_smooth(method=lm, formula = y ~ x, se=F)
+discontinuity_data <- given_daily_data |>
+    mutate(arbitrary_before = date > ymd("2016-09-01"), after_election = date > ymd("2016-11-8"), after_inauguration = date > ymd("2017-01-20"), arbitrary_after = date > ymd("2017-04-01")) |>
+    filter(date >= ymd("2014-01-01"))
+
+discontinuity_data |>
+    pivot_longer(c(arbitrary_before, after_election, after_inauguration, arbitrary_after), names_to = "split_location", values_to = "split_values") |>
+    ggplot(aes(x=date, y=search_adj, color=split_values)) +
+    geom_point(alpha = 0.05) +
+    geom_smooth(method=lm, formula = y ~ x, se=F) +
+    facet_wrap(~ split_location)
 ```
 
-Hmm. I'm not actually sure how to interpret this. I think we should show this to Jake tomorrow.
+So, showing a bunch of splits, we can see that while regressing separately between before and after the election showed a large discontinuity, so did regressing before and after the election, which the paper claimed wouldn't have such a discontinuity. When we use the arbitrary splits, the one afterwards shows almost no discontinuity, but the split beforehand does show one, albeit not as large. Because of this, I don't think that showing a discontinuity in linear regressions has that precise of an effect and question its use in the paper.
+
+We also wanted to see it as a regression so we could have a numerical measure of the discontinuity.
+
+```{r}
+list(
+    early_split = lm(search_adj ~ date + arbitrary_before, discontinuity_data),
+    election = lm(search_adj ~ date + after_election, discontinuity_data),
+    inauguration = lm(search_adj ~ date + after_inauguration, discontinuity_data),
+    late_split = lm(search_adj ~ date + arbitrary_after, discontinuity_data)
+) |>
+    msummary(output="markdown")
+```
+Here, we see that while the largest discontinuity is, in fact, after the inauguration, at 23.374, the election split has almost as big of a modifier with 22.202 - in fact, since it's within the margin of error, we can't really say which one is actually better. While the earlier arbitrary time has a smaller discontinuity, at 16.113, it is still large.
+
+The discontinuity does show an increase of searches for reporting immigrants during Trump's term. But the presence of a discontinuity does not mean that the exact location chose to split the data means anything.
