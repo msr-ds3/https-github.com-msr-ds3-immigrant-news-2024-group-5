@@ -160,7 +160,7 @@ Now we reproduce table 4. This is before we get the daily data, so we do it on a
 ```{r}
 topic_table <- document_topics |>
     mutate(month = floor_date(date, "month")) |>
-    group_by(month, channel, time) |>
+    group_by(month, time) |>
     summarize(proportion_1 = sum(Topic1), proportion_3 = sum(Topic3), crime_coverage = proportion_1 + proportion_3, welfare_coverage = sum(Topic13), num_segments = n()) |>
     mutate(trump_admin = time == "post-election", month_of_year=month(month, label=T)) |>
     inner_join(immigration_data, by="month")
@@ -168,7 +168,7 @@ topic_table <- document_topics |>
 lm(report_trend ~ num_segments + crime_coverage + welfare_coverage + trump_admin + month + month_of_year, topic_table) |>
     msummary(output='markdown')
 ```
-Obviously, this is different from their result, because it is on a monthly level. But we found significantly lower effects of number of segments and crime coverage. These things shouldn't change, but perhaps the effect only exists in the short-term (but if so, that changes the paper's conclusions). Though we did still have a high modifier for Trump's presidency, persumably because that was a long-term effect.
+Obviously, this is different from their result, because it is on a monthly level. But we found significantly lower effects of number of crime and welfare coverage, and no effect from the number of segments. These things shouldn't change, but perhaps the effect only exists in the short-term (but if so, that changes the paper's conclusions). Though we did still have a high modifier for Trump's presidency, presumably because that was a long-term effect.
 
 ## Figure 4 and Table 3 Using Replication Files
 
@@ -218,7 +218,7 @@ Now we will replicate Table 4 using the given day values.
 given_daily_data <- read_csv('from_replication_files/gt_report_daily.csv')
 
 topic_table_daily <- document_topics |>
-    group_by(date, channel, time) |>
+    group_by(date, time) |>
     summarize(proportion_1 = sum(Topic1), proportion_3 = sum(Topic3), crime_coverage = proportion_1 + proportion_3, welfare_coverage = sum(Topic13), num_segments = n()) |>
     mutate(trump_admin = time == "post-election", month_of_year=month(date, label=T), day_of_week=wday(date, label=T)) |>
     inner_join(given_daily_data, by="date")
@@ -229,7 +229,7 @@ list(
 )|>
     msummary(output='markdown')
 ```
-From here, we see that while neither of them are exactly identical, the one using the adjusted values is much closer to what they got. But the non-adjusted version actually goes against it, with a greater number of searches with _less_ crime coverage.
+From here, we see that while neither of them are exactly identical, the one using the adjusted values is much closer to what they got. But the non-adjusted version finds a much weaker effect, with crime coverage having an ambiguous effect.
 
 Looking at the data, it seems that the problem is that they can only look at one time period (say, month) at a time, and each month is only scaled with other searches in that month. But, I don't understand how their normalization works.
 
@@ -273,12 +273,12 @@ The paper says: "We also expect that when the Trump administration receives medi
 
 ## Candidate Trump Boosting Reports
 
-So, we will make a regression, where we have trump and candidacy stage as * along with month and channel to see if that boosts it.
+So, we will make a regression, where we have trump and candidacy stage as * along with month see if that boosts it.
 
 ```{r}
 trump_extension_table <- document_topics |>
     mutate(month = floor_date(date, "month")) |>
-    group_by(month, channel, time, trump) |>
+    group_by(month, time, trump) |>
     summarize(proportion_1 = sum(Topic1), proportion_3 = sum(Topic3), crime_coverage = proportion_1 + proportion_3, welfare_coverage = sum(Topic13), num_segments = n()) |>
     mutate(month_of_year=month(month, label=T)) |>
     inner_join(trend_data_individual, by="month")
