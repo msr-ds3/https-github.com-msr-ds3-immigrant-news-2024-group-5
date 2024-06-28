@@ -1,6 +1,6 @@
 ---
 title: "Recreating Immigration Plots"
-author: "Shimmy Greengart"
+author: "Shimmy Greengart, Smriti Karki"
 date: "2024-06-24"
 output:
     html_document:
@@ -42,7 +42,7 @@ immigration_data |>
 ```
 ## Table 3
 
-Now we do table 3.
+Now we replicate table 3.
 
 ```{r}
 table_3_data <- immigration_data |>
@@ -86,7 +86,7 @@ This looks very different from out original plot, but that makes sense. Before, 
 
 ## Figures 2 and 3
 
-Now, we get the topic model data.
+Now, we get the topic model data. The topic model was given to us by Jake Hofman of Microsoft Research. We aren't sure where he got it from. The model is not included in the repository because it was too big to fit.
 
 ```{r}
 load("TopicModel.RData")
@@ -173,7 +173,7 @@ Obviously, this is different from their result, because it is on a monthly level
 
 ## Figure 4 and Table 3 Using Replication Files
 
-We want to recreate figure 4 and table 3 using the data they used to see if we still get the same results.
+We want to recreate figure 4 and table 3 using the data they used to see if we still get the same results. This data was supplied again by Jake Hofman, but we have included it for anyone trying to replicate this.
 
 ```{r}
 report_data <- read_csv('from_replication_files/google_trends_report.csv') |>
@@ -212,7 +212,7 @@ But it's also true that he downloaded this in 3 separate files while we did it i
 
 ## Table 4 Using Replication Daily Data
 
-Now we will replicate Table 4 using the given day values.
+Now we will replicate Table 4 using the given day values. Once again, the daily values used by the original paper were provided to us, and you can use it to replicate this.
 
 ```{r}
 
