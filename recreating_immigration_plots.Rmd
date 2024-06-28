@@ -13,7 +13,6 @@ knitr::opts_chunk$set(echo = TRUE)
 
 library(tidyverse)
 library(modelsummary)
-library(stm)
 library(modelr)
 ```
 
@@ -86,14 +85,10 @@ This looks very different from out original plot, but that makes sense. Before, 
 
 ## Figures 2 and 3
 
-Now, we get the topic model data. The topic model was given to us by Jake Hofman of Microsoft Research. We aren't sure where he got it from. The model is not included in the repository because it was too big to fit.
+Now, we get the topic model data. The topic model was given to us by Jake Hofman of Microsoft Research. The model is not included in the repository because it was too big to fit. Instead, we have two matrices from the model, one containing the topics in each document and one containing each term's topic distribution.
 
 ```{r}
-load("TopicModel.RData")
-document_topics <- make.dt(immigrFit, meta = out$meta)
-topic_terms <- t(exp(immigrFit$beta$logbeta[[1]]))
-rownames(topic_terms) <- out$vocab
-colnames(topic_terms) <- sprintf("Topic%d", 1:ncol(topic_terms))
+load('from_replication_files/topic_model_lite.RData')
 
 document_topics <- document_topics |>
     mutate(date = ymd(date))
@@ -291,6 +286,8 @@ list(
     msummary(output='markdown')
 ```
 If we regress by month in addition to our other variables, then we get what the paper predicts: trump's name causes a bigger boost post-election than the campaign. However, since the Trump boost (3.374) is more than 3, and the decrease in the campaign is less than that (-2.447), Trump *still* has a positive association with report searches, even in the campaign. When we stop filtering by month, this remains the case.
+
+However, the standard error is so large that findings here may be meaningless.
 
 ## Discontinuity on Election
 
