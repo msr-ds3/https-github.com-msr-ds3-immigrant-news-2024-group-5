@@ -5,6 +5,7 @@ date: "2024-06-24"
 output:
     html_document:
         toc: yes
+        code_folding: hide
 ---
 
 ```{r setup, include=FALSE}
