@@ -23,7 +23,7 @@ library(modelr)
 First, we get the data. We downloaded it fresh from [Google Trends](https://trends.google.com/trends/explore?date=2004-01-01%202019-12-31&geo=US&q=report%20immigrant%20%2B%20report%20immigration%20%2B%20report%20illegals%20%2B%20report%20illegal%20alien%20%2B%20report%20to%20ice,immigrant%20crime%20%2B%20immigrant%20criminal%20%2B%20immigrant%20murder%20%2B%20immigrant%20kill,immigrant%20welfare%20%2B%20immigrant%20cost%20%2B%20immigrant%20benefits&hl=en), looking at all 3 together in comparison. 
 
 ```{r}
-immigration_data <- read_csv('google_trends_data.csv', skip=3, col_names=c('month', 'welfare_trend', 'crime_trend', 'report_trend')) |>
+immigration_data <- read_csv('from_google_trends/google_trends_collective.csv', skip=3, col_names=c('month', 'welfare_trend', 'crime_trend', 'report_trend')) |>
     mutate(month = parse_date(month, "%Y-%m")) |>
     mutate(president=as.factor(ifelse(year(month) <= 2008, "Bush", ifelse(year(month) <= 2016, "Obama", "Trump"))))
 
@@ -289,7 +289,7 @@ list(
      ) |>
     msummary(output='markdown')
 ```
-If we regress by month in addition to our other variables, then we get what the paper predicts: trump's name causes a bigger boost post-election than the campaign. However, since the Trump boost (3.374) is more than 3, and the decrease in the campaign is less than that (-2.447), Trump _still_ has a positive association with report searches, even in the campaign. When we stop filtering by month, this remains the case.
+If we regress by month in addition to our other variables, then we get what the paper predicts: trump's name causes a bigger boost post-election than the campaign. However, since the Trump boost (3.374) is more than 3, and the decrease in the campaign is less than that (-2.447), Trump *still* has a positive association with report searches, even in the campaign. When we stop filtering by month, this remains the case.
 
 ## Discontinuity on Election
 
@@ -316,10 +316,10 @@ We also wanted to see it as a regression so we could have a numerical measure of
 
 ```{r}
 list(
-    early_split = lm(search_adj ~ date + arbitrary_before, discontinuity_data),
-    election = lm(search_adj ~ date + after_election, discontinuity_data),
-    inauguration = lm(search_adj ~ date + after_inauguration, discontinuity_data),
-    late_split = lm(search_adj ~ date + arbitrary_after, discontinuity_data)
+    lm(search_adj ~ date + arbitrary_before, discontinuity_data),
+    lm(search_adj ~ date + after_election, discontinuity_data),
+    lm(search_adj ~ date + after_inauguration, discontinuity_data),
+    lm(search_adj ~ date + arbitrary_after, discontinuity_data)
 ) |>
     msummary(output="markdown")
 ```
